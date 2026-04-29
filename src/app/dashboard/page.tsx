@@ -12,7 +12,7 @@ export default async function Dashboard() {
     redirect("/");
   }
 
-  let repos = [];
+  let repos: Awaited<ReturnType<typeof fetchUserRepos>> = [];
   try {
     repos = await fetchUserRepos(session.accessToken);
   } catch {
