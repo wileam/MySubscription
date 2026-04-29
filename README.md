@@ -2,7 +2,7 @@
 
 A connected services dashboard that fetches your GitHub repositories and enriches each one with AI-powered summaries, keyword extraction, and sentiment analysis.
 
-**Live demo:** https://my-subscription-wileam.vercel.app
+**Live demo:** https://my-subscription-gamma.vercel.app
 
 ---
 
