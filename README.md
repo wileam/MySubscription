@@ -1,36 +1,127 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MySubscriptions
 
-## Getting Started
+A connected services dashboard that fetches your GitHub repositories and enriches each one with AI-powered summaries, keyword extraction, and sentiment analysis.
 
-First, run the development server:
+**Live demo:** https://my-subscription-wileam.vercel.app
+
+---
+
+## Setup
+
+### Prerequisites
+- Node.js 18+
+- A [GitHub OAuth App](https://github.com/settings/developers)
+- A [Groq API key](https://console.groq.com)
+
+### Local development
 
 ```bash
+git clone https://github.com/YOUR_USERNAME/mysubscriptions.git
+cd mysubscriptions
+npm install
+cp .env.example .env.local   # fill in your values
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Description |
+|---|---|
+| `NEXTAUTH_SECRET` | Random secret — generate with `openssl rand -base64 32` |
+| `NEXTAUTH_URL` | `http://localhost:3000` locally, your Vercel URL in production |
+| `GITHUB_CLIENT_ID` | From your GitHub OAuth app |
+| `GITHUB_CLIENT_SECRET` | From your GitHub OAuth app |
+| `GROQ_API_KEY` | From console.groq.com |
 
-## Learn More
+**GitHub OAuth callback URLs** (add both in your OAuth app settings):
+```
+http://localhost:3000/api/auth/callback/github
+https://your-app.vercel.app/api/auth/callback/github
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Architecture
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+src/
+├── app/
+│   ├── page.tsx                    # Landing page — GitHub sign-in
+│   ├── dashboard/page.tsx          # Dashboard — server component, fetches repos
+│   ├── providers.tsx               # SessionProvider wrapper
+│   └── api/
+│       ├── auth/[...nextauth]/     # NextAuth OAuth handler
+│       └── ai/analyze/             # AI analysis endpoint (POST)
+├── components/
+│   ├── DashboardClient.tsx         # Client shell — manages filter state + AI cache
+│   ├── ItemCard.tsx                # Repo card with metadata and AI output
+│   ├── AIBadge.tsx                 # Summary, keywords, sentiment display
+│   ├── FilterBar.tsx               # Search + language filter
+│   └── SignOutButton.tsx
+└── lib/
+    ├── auth.ts                     # NextAuth config (shared between route + server)
+    ├── github.ts                   # GitHub REST API client
+    └── ai.ts                       # Groq API client
+```
 
-## Deploy on Vercel
+**Data flow:**
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. User signs in via GitHub OAuth — NextAuth stores the access token server-side in a JWT session cookie
+2. The dashboard page (server component) reads the session token and calls the GitHub API directly, fetching up to 15 of the user's most recently updated repositories
+3. The client component fires all AI analysis requests in parallel on mount, caching results by repo ID in component state
+4. Filter changes show/hide cards using the cached results — no re-analysis on filter
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Key architectural decisions:**
+
+- **Server-side data fetch** — GitHub access token never reaches the browser; the server component acts as a secure proxy
+- **Client-side AI cache** — analysis runs once per page load, not per render, so filtering is instant
+- **Separation of concerns** — `lib/github.ts` and `lib/ai.ts` are pure API clients with no framework coupling, making them independently testable
+
+---
+
+## AI / NLP Implementation
+
+Each repository is analyzed by **Groq** running **Llama 3.3 70B**, returning structured JSON with three fields:
+
+| Field | Description |
+|---|---|
+| `summary` | 1–2 sentence plain-English description of what the repo does |
+| `keywords` | Up to 5 relevant tags extracted from the name, description, language, and topics |
+| `sentiment` | `positive`, `neutral`, or `negative` based on the project's nature and description |
+
+The prompt passes the repo name, description, primary language, and GitHub topics as context. `response_format: { type: "json_object" }` enforces valid JSON output, eliminating the need for regex parsing or retry logic.
+
+All 15 requests fire in parallel on dashboard load. Each card shows a loading spinner independently until its result arrives — failed requests fall back gracefully to an "unavailable" state without affecting other cards.
+
+---
+
+## Limitations
+
+- **No persistence** — data is fetched fresh on every page load; there is no cache between sessions
+- **Repository-only** — currently only reads repos, not issues, PRs, or commits
+- **Single service** — only GitHub is connected; Spotify and Google Calendar were considered but deprioritized within the time budget
+- **Rate limits** — GitHub's API allows 5,000 requests/hour for authenticated users; Groq's free tier has per-minute limits that could cause failures if many users hit the app simultaneously
+
+---
+
+## Future Enhancements
+
+### +1 day
+- Stream AI responses per card using the Groq streaming API and React Suspense, so cards populate as results arrive rather than all at once
+- Add a keyword frequency chart across all repos (bar chart of most common terms)
+- Let users choose which AI processing to apply per card (summary, keywords, or sentiment)
+
+### +5 days
+- Add Spotify integration — recently played tracks with mood/genre analysis
+- Persist AI results in a lightweight store (Redis or Vercel KV) with a short TTL, so repeat visits are instant
+- Expand GitHub data to include open issues and recent PRs for richer analysis context
+- Add user-configurable processing preferences saved to a profile
+
+### +20 days
+- Support additional OAuth services: Google Calendar (event summarization), Notion (page digests), Reddit (subscription highlights)
+- Cross-service unified feed with AI-generated daily digest
+- Webhook subscriptions for real-time updates without polling
+- Shareable dashboard snapshots with public links
+- Team/organization mode for shared visibility across connected accounts
