@@ -21,7 +21,7 @@ export default async function Dashboard() {
 
   return (
     <div className="min-h-screen">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10 dark:bg-gray-900 dark:border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-xl font-bold">⚡ MySubscriptions</span>
@@ -41,7 +41,7 @@ export default async function Dashboard() {
                 className="w-8 h-8 rounded-full"
               />
             )}
-            <span className="hidden sm:block text-sm text-gray-600">{session.user?.name}</span>
+            <span className="hidden sm:block text-sm text-gray-600 dark:text-gray-400">{session.user?.name}</span>
             <SignOutButton />
           </div>
         </div>
@@ -50,7 +50,7 @@ export default async function Dashboard() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         <div>
           <h2 className="text-2xl font-bold">Your Repositories</h2>
-          <p className="text-gray-500 text-sm mt-1">
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
             {repos.length} repositories · AI analysis loads per card
           </p>
         </div>

@@ -28,13 +28,13 @@ export default function Home() {
             ⚡
           </div>
           <h1 className="text-4xl font-bold tracking-tight">MySubscriptions</h1>
-          <p className="text-gray-500 text-lg">
+          <p className="text-gray-500 dark:text-gray-400 text-lg">
             Connect your services and get AI-powered insights on your activity.
           </p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4 shadow-sm">
-          <p className="text-sm font-medium text-gray-700">Connect a service to get started</p>
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 space-y-4 shadow-sm">
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Connect a service to get started</p>
           <button
             onClick={() => signIn("github", { callbackUrl: "/dashboard" })}
             className="w-full flex items-center justify-center gap-3 bg-gray-900 text-white rounded-xl px-5 py-3 font-medium hover:bg-gray-800 transition-colors"
