@@ -4,6 +4,8 @@ A connected services dashboard that fetches your GitHub repositories and enriche
 
 **Live demo:** https://my-subscription-gamma.vercel.app
 
+**Demo**: https://www.loom.com/share/a838f7ef1c8b4dff929e0a7f85dd4ae4
+
 ---
 
 ## Setup
