@@ -123,21 +123,27 @@ export default function DashboardClient({
       )}
 
       {hasMore && (
-        <div className="flex justify-center pt-4">
-          <button
-            onClick={loadMore}
-            disabled={loadingMore}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {loadingMore ? (
-              <>
-                <div className="w-3 h-3 border border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                Loading…
-              </>
-            ) : (
-              "Load more"
-            )}
-          </button>
+        <div className="flex flex-col items-center gap-2 pt-4">
+          {query || language ? (
+            <p className="text-sm text-gray-400 dark:text-gray-500">
+              Clear filters to load more repositories
+            </p>
+          ) : (
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="flex items-center gap-2 px-6 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {loadingMore ? (
+                <>
+                  <div className="w-3 h-3 border border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                  Loading…
+                </>
+              ) : (
+                "Load more"
+              )}
+            </button>
+          )}
         </div>
       )}
     </div>

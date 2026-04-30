@@ -2,7 +2,7 @@ import Groq from "groq-sdk";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const BATCH_SIZE = 10;
+const BATCH_SIZE = 5;
 
 export interface AIAnalysis {
   summary: string;
