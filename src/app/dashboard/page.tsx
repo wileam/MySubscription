@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
-import { fetchUserRepos } from "@/lib/github";
+import { fetchUserRepos, PER_PAGE } from "@/lib/github";
 import DashboardClient from "@/components/DashboardClient";
 import SignOutButton from "@/components/SignOutButton";
 
@@ -51,11 +51,11 @@ export default async function Dashboard() {
         <div>
           <h2 className="text-2xl font-bold">Your Repositories</h2>
           <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-            {repos.length} repositories · AI analysis loads per card
+            {repos.length} repositories loaded · AI analysis per card
           </p>
         </div>
 
-        <DashboardClient repos={repos} />
+        <DashboardClient initialRepos={repos} initialHasMore={repos.length === PER_PAGE} />
       </main>
     </div>
   );

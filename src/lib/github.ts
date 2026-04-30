@@ -15,9 +15,11 @@ export interface GitHubRepo {
   };
 }
 
-export async function fetchUserRepos(accessToken: string): Promise<GitHubRepo[]> {
+const PER_PAGE = 15;
+
+export async function fetchUserRepos(accessToken: string, page = 1): Promise<GitHubRepo[]> {
   const res = await fetch(
-    "https://api.github.com/user/repos?sort=updated&per_page=15&type=all",
+    `https://api.github.com/user/repos?sort=updated&per_page=${PER_PAGE}&page=${page}&type=all`,
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -33,3 +35,5 @@ export async function fetchUserRepos(accessToken: string): Promise<GitHubRepo[]>
 
   return res.json();
 }
+
+export { PER_PAGE };
