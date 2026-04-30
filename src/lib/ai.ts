@@ -2,7 +2,7 @@ import Groq from "groq-sdk";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const MINI_BATCH_SIZE = 5;
+const BATCH_SIZE = 10;
 
 export interface AIAnalysis {
   summary: string;
@@ -59,8 +59,8 @@ Return ONLY:
 
 export async function analyzeReposBatch(repos: RepoInput[]): Promise<AIAnalysis[]> {
   const chunks: RepoInput[][] = [];
-  for (let i = 0; i < repos.length; i += MINI_BATCH_SIZE) {
-    chunks.push(repos.slice(i, i + MINI_BATCH_SIZE));
+  for (let i = 0; i < repos.length; i += BATCH_SIZE) {
+    chunks.push(repos.slice(i, i + BATCH_SIZE));
   }
 
   const results = await Promise.all(chunks.map(analyzeChunk));

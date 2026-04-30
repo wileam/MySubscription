@@ -15,7 +15,7 @@ export interface GitHubRepo {
   };
 }
 
-const PER_PAGE = 15;
+const PER_PAGE = 10;
 
 export async function fetchUserRepos(accessToken: string, page = 1): Promise<GitHubRepo[]> {
   const res = await fetch(
