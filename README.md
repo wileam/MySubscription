@@ -157,7 +157,7 @@ Repos load 10 at a time. A **Load More** button fetches the next page via `/api/
 - GitHub access token stored in a **JWE (JSON Web Encryption)** cookie — AES-256-GCM encrypted with `NEXTAUTH_SECRET`. 5-segment format vs standard JWT's 3.
 - `__Secure-` cookie prefix enforced in production (HTTPS only).
 - Token never reaches the browser.
-- **Known gap:** `/api/ai/analyze` has no session check. In production: add `getServerSession()` guard to prevent unauthorized Groq API usage.
+- `/api/ai/analyze` requires an authenticated session — unauthenticated requests return 401.
 
 ---
 
