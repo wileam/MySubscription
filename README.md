@@ -93,7 +93,9 @@ Each repository is analyzed by **Groq** running **Llama 3.3 70B**, returning str
 
 The prompt passes the repo name, description, primary language, and GitHub topics as context. `response_format: { type: "json_object" }` enforces valid JSON output, eliminating the need for regex parsing or retry logic.
 
-**Batched analysis:** all repositories are analyzed in a single Groq API call rather than one request per repo. This was validated with a load test across batch sizes:
+**Mini-batch analysis:** repos are split into chunks of 5 and analyzed in parallel Groq calls. This was arrived at through two rounds of testing.
+
+*Round 1 — batch size load test* (single call, varying repo count):
 
 | Batch size | Response time | Total tokens |
 |---|---|---|
@@ -102,7 +104,18 @@ The prompt passes the repo name, description, primary language, and GitHub topic
 | 15 repos | 1,829ms | 1,486 |
 | 20 repos | 2,194ms | 1,861 |
 
-Groq's free tier allows 6,000 tokens/minute. Batching 15 repos uses ~1,486 tokens in one call, well within the limit. The alternative — one call per repo fired in parallel — would consume ~7,500 tokens simultaneously and reliably hit rate limits. Batching also cuts network overhead from N round trips to one.
+Groq's free tier allows 6,000 tokens/minute. A single call for 15 repos uses ~1,486 tokens — within limits. One call per repo fired in parallel would consume ~7,500 tokens simultaneously and reliably hit rate limits.
+
+*Round 2 — quality comparison* (single batch of 10 vs two mini-batches of 5, same repos):
+
+| | Single batch | Mini-batch of 5 |
+|---|---|---|
+| Time | 1,117ms | 1,007ms |
+| Tokens | 977 | 1,214 (+24%) |
+| Summary depth | 1 sentence, generic | 1–2 sentences, more detail |
+| Keywords | 4 items, sometimes vague | 5 items, more specific |
+
+Mini-batches produce richer, more detailed output because the model has more focused attention per item. The token cost increases ~24% but stays well within limits. Chunks run in parallel via `Promise.all` so total latency is the same as a single chunk.
 
 ---
 
