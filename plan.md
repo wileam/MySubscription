@@ -1,129 +1,143 @@
-# MySubscriptions — Implementation Plan
+# MySubscriptions — Planning Doc
 
-## Stack
+## Stack Decisions
 
-| Concern | Choice | Reason |
+| Concern | Choice | Why |
 |---|---|---|
-| Framework | Next.js 14 (App Router) | TypeScript-first, API routes = built-in backend separation, perfect Vercel deploy |
-| Styling | Tailwind CSS | Fast clean UI, responsive by default |
-| Auth | NextAuth.js | Handles OAuth token storage/refresh, server-side only — tokens never hit the client |
-| AI | Claude API (Anthropic) | Structured JSON output via tool use, great at summarization |
+| Framework | Next.js 16 (App Router) | Server components handle GitHub API calls server-side so the access token never reaches the browser. API routes give backend separation without a separate server. Zero-config Vercel deploy. |
+| Styling | Tailwind CSS v4 | Fast to build, dark mode via `prefers-color-scheme` with no JS |
+| Auth | NextAuth.js v4 | Handles CSRF protection, state param validation, token storage — rolling your own OAuth has too many footguns |
+| AI | Groq — Llama 3.3 70B | Free tier, ~1-2s response, supports `response_format: json_object`. Claude/GPT-4o would give better quality but cost money for a demo |
 | Deployment | Vercel | Free, zero-config with Next.js |
 
 ---
 
-## Services
+## Service Choice
 
-**Primary: GitHub** — repos + issues
-- Rich text (issue body, PR description) for meaningful AI summarization
+**GitHub chosen over Spotify/Google Calendar because:**
+- Developer audience — interviewers will relate to the data
+- Rich metadata per repo (description, language, topics, stars) gives AI enough signal
 - Easy to demo live with your own repos
+- Spotify tracks are short — less interesting to summarize
 
-**Optional bonus: Spotify** — recently played / saved tracks
-- Adds multi-service credibility (optional enhancement checkbox)
-- Sentiment on music is a natural AI use case
-
----
-
-## Architecture
-
-```
-/
-├── app/
-│   ├── page.tsx                    # Landing — "Connect" buttons
-│   ├── dashboard/
-│   │   └── page.tsx                # Main dashboard (server component)
-│   └── api/
-│       ├── auth/[...nextauth]/     # NextAuth OAuth handler
-│       ├── github/items/           # Fetch GitHub repos/issues
-│       ├── spotify/items/          # Fetch Spotify tracks (optional)
-│       └── ai/analyze/             # Claude API — summarize/keywords/sentiment
-├── components/
-│   ├── ServiceCard.tsx             # Service name + logo + connect status
-│   ├── ItemCard.tsx                # Item metadata + AI output
-│   ├── AIBadge.tsx                 # Summary / keywords / sentiment display
-│   └── FilterBar.tsx               # Search/filter bar
-└── lib/
-    ├── github.ts                   # GitHub API client
-    ├── spotify.ts                  # Spotify API client (optional)
-    └── ai.ts                       # Claude API calls
-```
-
-**Data flow:**
-1. User hits landing → clicks "Connect GitHub" → NextAuth OAuth flow
-2. Dashboard load (server component): fetch 15 GitHub items using session token
-3. Per item: call `/api/ai/analyze` → Claude returns `{ summary, keywords, sentiment }` as structured JSON
-4. Render `ItemCard` with metadata + AI output inline
+**Spotify not implemented** — deprioritized within time budget, documented as +5 day enhancement
 
 ---
 
-## Implementation Order
+## AI Strategy — How We Got to the Final Approach
 
-| Hour | Task |
-|---|---|
-| 1 | `npx create-next-app`, NextAuth setup, GitHub OAuth config |
-| 2 | GitHub API fetch (repos + issues), basic ItemCard display |
-| 3 | Claude API integration — structured prompt, `/api/ai/analyze` route |
-| 4 | Dashboard UI — Tailwind layout, ServiceCard, AIBadge, loading states |
-| 5 | Filter/search, polish, `.env.example`, deploy to Vercel |
-| 6 (bonus) | Spotify OAuth + recently played + sentiment analysis |
+### Step 1: Ruled out one-call-per-repo
+
+Groq free tier = **6,000 tokens/minute**. 15 repos × ~500 tokens each = ~7,500 tokens fired simultaneously → hits rate limit reliably. Needed batching.
+
+### Step 2: Load tested batch sizes
+
+| Batch size | Time | Tokens |
+|---|---|---|
+| 5 repos | 796ms | 542 |
+| 10 repos | 1,225ms | 985 |
+| 15 repos | 1,829ms | 1,486 |
+| 20 repos | 2,194ms | 1,861 |
+
+10 repos = ~985 tokens per call → safe. Decided 10 per page, 1 call per page load.
+
+### Step 3: Quality tested single batch vs mini-batches of 5
+
+| | Single batch of 10 | Mini-batches of 5 |
+|---|---|---|
+| Time | 1,117ms | 1,007ms |
+| Tokens | 977 | 1,214 (+24%) |
+| Quality | Generic 1-line summaries | Richer 2-sentence summaries |
+
+Mini-batches won on quality. +24% tokens still safe. Parallel via `Promise.all` so no added latency.
+
+**Final decision:** 10 repos per page, sent in mini-batches of 5, run in parallel.
+
+### Why not JSON repair?
+
+`response_format: { type: "json_object" }` makes syntax errors impossible at the model level. Structural issues (wrong array length, missing fields) are handled by typed fallbacks in `parseAnalysis()` — bad responses degrade per card, not the whole dashboard.
 
 ---
 
-## AI Implementation
+## Pagination Decision
 
-One Claude call per item with a structured prompt:
+**Load More button chosen over infinite scroll because:**
+- AI cost is bounded — one batch per click, not continuous
+- User explicitly controls when more data loads
+- Simpler to implement and reason about
 
-```
-Given this GitHub issue:
-Title: {title}
-Body: {body}
+**Infinite scroll trade-off:** better UX but needs a request queue to prevent rate limit spikes if user scrolls fast. Worth adding in production.
 
-Return JSON: { summary: string (1-2 sentences), keywords: string[], sentiment: "positive"|"neutral"|"negative" }
-```
-
-Use Claude's tool use / JSON mode so responses are always parseable. Handle failures per-item so one bad response doesn't break the whole dashboard.
+**Page size = 10:** matches the AI batch size (one call per page), stays well under 6k TPM, fast enough load time (~1.2s per page).
 
 ---
 
-## Environment Variables
+## Key Trade-offs
 
-```bash
-# .env.local
-NEXTAUTH_SECRET=
-NEXTAUTH_URL=http://localhost:3000
+| Decision | What we gained | What we gave up |
+|---|---|---|
+| No database | Zero infra, always fresh data | Slow repeat visits, no cross-device cache |
+| Client-side AI cache by repo ID | Filter/search is instant, no re-analysis | Cache lost on page refresh |
+| Server-side GitHub fetch | Token never in browser | One extra server hop per load |
+| Groq free tier | Zero cost | 6k TPM — would need paid tier or request queue for multi-user |
+| JWE session cookie | GitHub token encrypted at rest | Slightly larger cookie than plain JWT |
+| Load More over infinite scroll | Predictable AI usage | Less smooth UX |
 
-GITHUB_CLIENT_ID=
-GITHUB_CLIENT_SECRET=
+---
 
-SPOTIFY_CLIENT_ID=         # optional
-SPOTIFY_CLIENT_SECRET=     # optional
+## Security Notes
 
-ANTHROPIC_API_KEY=
-```
+- GitHub access token stored in **JWE cookie** (AES-256-GCM, 5-segment format) — only the server can decrypt it
+- `__Secure-` cookie prefix in production — HTTPS only
+- Token never serialized into page HTML
+- **Known gap:** `/api/ai/analyze` has no session check — anyone can POST. Fix in production: add `getServerSession()` guard to the route handler
+
+---
+
+## Future Enhancements
+
+### +1 day
+- Stream AI responses via Groq streaming API + `ReadableStream` route handler — cards populate token by token
+- Add session guard to `/api/ai/analyze`
+- Keyword frequency chart (bar chart of most common terms across all repos)
+
+### +5 days
+- Spotify OAuth — recently played tracks with mood/genre AI analysis
+- Vercel KV (Upstash Redis) AI cache — key by `userId:repoId`, TTL 5 min, cross-device
+- User preferences (which AI fields to show, repos per page) saved to Vercel KV
+- Expand GitHub data to open issues + recent PRs for richer AI context
+- Infinite scroll with request queue replacing Load More
+
+### +20 days
+- Google Calendar, Notion, Reddit OAuth integrations
+- Cross-service unified feed with AI daily digest
+- Webhook subscriptions for real-time updates
+- Shareable dashboard snapshots
+- Team/org mode
 
 ---
 
 ## Interview Talking Points
 
-**Security:** OAuth tokens live only in the server-side NextAuth session — the client never sees them. API routes proxy all service calls so credentials are never exposed.
+**On security:** "OAuth tokens live in a JWE cookie — AES-256-GCM encrypted with NEXTAUTH_SECRET. The client never sees the token. Server components proxy all GitHub calls. One known gap: the AI route has no auth check, which I'd fix before production."
 
-**Backend separation:** Each `/api/` route is independently scoped — the optional requirement is satisfied even within the monorepo.
+**On AI approach:** "I ruled out one-call-per-repo because 15 parallel calls would hit Groq's 6k TPM. I load tested batch sizes, then quality tested mini-batches vs single batches. Mini-batches of 5 gave richer summaries at +24% token cost, still within limits."
 
-**AI trade-offs:** AI calls are batched server-side on dashboard load. An improvement would be streaming results per-item with React Suspense so users see cards populate progressively.
+**On pagination:** "Load More over infinite scroll because AI cost is bounded per click. Infinite scroll needs a request queue — worth adding but adds complexity."
 
-**No database:** Data fetched fresh each visit — simpler setup, always current, but slower. With more time: Redis cache with a 5-min TTL.
+**On no database:** "Fresh fetch each visit — simpler, always current. Trade-off is latency on repeat visits. LocalStorage with a timestamp TTL is the zero-infra fix. Vercel KV for cross-device."
 
-**Future enhancements:**
-- 1 day: Streaming AI responses, keyword frequency chart
-- 5 days: Persistent history, user-selectable processing type (summary vs keywords vs sentiment), more services
-- 20 days: Webhooks for real-time updates, cross-service feed aggregation, shareable dashboards
+**On filtering:** "Filter state lives in the client. AI results cached by repo ID on mount — filter never re-triggers analysis. Filtering is instant."
 
 ---
 
 ## Pre-submission Checklist
 
-- [ ] `.env.example` with all vars documented
-- [ ] README: setup, architecture, AI implementation, limitations, future enhancements
-- [ ] Deployed Vercel link works without local setup
-- [ ] Error states handled (service disconnected, AI failure, empty data)
-- [ ] Mobile responsive
+- [x] `.env.example` documented
+- [x] README: setup, architecture, AI implementation, limitations, future enhancements
+- [x] Deployed Vercel link
+- [x] Error states — AI failure degrades per card, not whole page
+- [x] Dark mode
+- [x] Mobile responsive
+- [x] Meaningful git commit history
+- [x] Load More pagination
