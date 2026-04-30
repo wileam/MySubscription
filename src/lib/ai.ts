@@ -2,6 +2,8 @@ import Groq from "groq-sdk";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
+const MINI_BATCH_SIZE = 5;
+
 export interface AIAnalysis {
   summary: string;
   keywords: string[];
@@ -25,7 +27,7 @@ function parseAnalysis(raw: Record<string, unknown>): AIAnalysis {
   };
 }
 
-export async function analyzeReposBatch(repos: RepoInput[]): Promise<AIAnalysis[]> {
+async function analyzeChunk(repos: RepoInput[]): Promise<AIAnalysis[]> {
   const list = repos
     .map(
       (r, i) =>
@@ -52,6 +54,15 @@ Return ONLY:
 
   const raw = JSON.parse(completion.choices[0].message.content ?? "{}");
   const arr: unknown[] = Array.isArray(raw.results) ? raw.results : [];
-
   return repos.map((_, i) => parseAnalysis((arr[i] as Record<string, unknown>) ?? {}));
+}
+
+export async function analyzeReposBatch(repos: RepoInput[]): Promise<AIAnalysis[]> {
+  const chunks: RepoInput[][] = [];
+  for (let i = 0; i < repos.length; i += MINI_BATCH_SIZE) {
+    chunks.push(repos.slice(i, i + MINI_BATCH_SIZE));
+  }
+
+  const results = await Promise.all(chunks.map(analyzeChunk));
+  return results.flat();
 }
