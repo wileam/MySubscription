@@ -104,6 +104,10 @@ export default function DashboardClient({
 
   return (
     <div className="space-y-6">
+      <p className="text-gray-500 dark:text-gray-400 text-sm">
+        {repos.length} repositories loaded · AI analysis per card
+      </p>
+
       <FilterBar
         query={query}
         onQueryChange={setQuery}
