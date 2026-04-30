@@ -16,26 +16,33 @@ export default function DashboardClient({ repos }: { repos: GitHubRepo[] }) {
   useEffect(() => {
     setAnalysisMap(Object.fromEntries(repos.map((r) => [r.id, { status: "loading" }])));
 
-    repos.forEach((repo) => {
-      fetch("/api/ai/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: repo.name,
-          description: repo.description,
-          language: repo.language,
-          topics: repo.topics,
-        }),
-      })
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.error) throw new Error(data.error);
-          setAnalysisMap((prev) => ({ ...prev, [repo.id]: { status: "done", data } }));
-        })
-        .catch(() => {
-          setAnalysisMap((prev) => ({ ...prev, [repo.id]: { status: "error" } }));
+    fetch("/api/ai/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        repos: repos.map((r) => ({
+          name: r.name,
+          description: r.description,
+          language: r.language,
+          topics: r.topics,
+        })),
+      }),
+    })
+      .then((r) => r.json())
+      .then(({ results }) => {
+        const map: Record<number, AnalysisState> = {};
+        repos.forEach((repo, i) => {
+          map[repo.id] = results[i]
+            ? { status: "done", data: results[i] }
+            : { status: "error" };
         });
-    });
+        setAnalysisMap(map);
+      })
+      .catch(() => {
+        setAnalysisMap(
+          Object.fromEntries(repos.map((r) => [r.id, { status: "error" }]))
+        );
+      });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

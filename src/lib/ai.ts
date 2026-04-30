@@ -8,19 +8,29 @@ export interface AIAnalysis {
   sentiment: "positive" | "neutral" | "negative";
 }
 
-export async function analyzeRepo(
-  name: string,
-  description: string | null,
-  language: string | null,
-  topics: string[]
-): Promise<AIAnalysis> {
-  const content = [
-    `Repository: ${name}`,
-    description ? `Description: ${description}` : null,
-    language ? `Primary language: ${language}` : null,
-    topics.length ? `Topics: ${topics.join(", ")}` : null,
-  ]
-    .filter(Boolean)
+export interface RepoInput {
+  name: string;
+  description: string | null;
+  language: string | null;
+  topics: string[];
+}
+
+function parseAnalysis(raw: Record<string, unknown>): AIAnalysis {
+  return {
+    summary: typeof raw.summary === "string" ? raw.summary : "No summary available.",
+    keywords: Array.isArray(raw.keywords) ? (raw.keywords as string[]).slice(0, 5) : [],
+    sentiment: ["positive", "neutral", "negative"].includes(raw.sentiment as string)
+      ? (raw.sentiment as AIAnalysis["sentiment"])
+      : "neutral",
+  };
+}
+
+export async function analyzeReposBatch(repos: RepoInput[]): Promise<AIAnalysis[]> {
+  const list = repos
+    .map(
+      (r, i) =>
+        `${i + 1}. name: ${r.name} | description: ${r.description || "none"} | language: ${r.language || "none"} | topics: ${r.topics?.join(", ") || "none"}`
+    )
     .join("\n");
 
   const completion = await groq.chat.completions.create({
@@ -30,26 +40,18 @@ export async function analyzeRepo(
     messages: [
       {
         role: "user",
-        content: `Analyze this GitHub repository and return JSON.
+        content: `Analyze these GitHub repositories and return a JSON object with a "results" array, one entry per repo in order.
 
-${content}
+${list}
 
-Return ONLY valid JSON:
-{
-  "summary": "1-2 sentence summary of what this repo is about and its purpose",
-  "keywords": ["up to 5 relevant keywords"],
-  "sentiment": "positive or neutral or negative based on the project nature and description"
-}`,
+Return ONLY:
+{ "results": [{ "summary": "1-2 sentence summary", "keywords": ["up to 5 keywords"], "sentiment": "positive|neutral|negative" }, ...] }`,
       },
     ],
   });
 
   const raw = JSON.parse(completion.choices[0].message.content ?? "{}");
-  return {
-    summary: raw.summary ?? "No summary available.",
-    keywords: Array.isArray(raw.keywords) ? raw.keywords.slice(0, 5) : [],
-    sentiment: ["positive", "neutral", "negative"].includes(raw.sentiment)
-      ? raw.sentiment
-      : "neutral",
-  };
+  const arr: unknown[] = Array.isArray(raw.results) ? raw.results : [];
+
+  return repos.map((_, i) => parseAnalysis((arr[i] as Record<string, unknown>) ?? {}));
 }

@@ -70,7 +70,7 @@ src/
 
 1. User signs in via GitHub OAuth — NextAuth stores the access token server-side in a JWT session cookie
 2. The dashboard page (server component) reads the session token and calls the GitHub API directly, fetching up to 15 of the user's most recently updated repositories
-3. The client component fires all AI analysis requests in parallel on mount, caching results by repo ID in component state
+3. The client component sends all repos in a single batched AI request on mount, then maps results back to each repo by index
 4. Filter changes show/hide cards using the cached results — no re-analysis on filter
 
 **Key architectural decisions:**
@@ -93,7 +93,16 @@ Each repository is analyzed by **Groq** running **Llama 3.3 70B**, returning str
 
 The prompt passes the repo name, description, primary language, and GitHub topics as context. `response_format: { type: "json_object" }` enforces valid JSON output, eliminating the need for regex parsing or retry logic.
 
-All 15 requests fire in parallel on dashboard load. Each card shows a loading spinner independently until its result arrives — failed requests fall back gracefully to an "unavailable" state without affecting other cards.
+**Batched analysis:** all repositories are analyzed in a single Groq API call rather than one request per repo. This was validated with a load test across batch sizes:
+
+| Batch size | Response time | Total tokens |
+|---|---|---|
+| 5 repos | 796ms | 542 |
+| 10 repos | 1,225ms | 985 |
+| 15 repos | 1,829ms | 1,486 |
+| 20 repos | 2,194ms | 1,861 |
+
+Groq's free tier allows 6,000 tokens/minute. Batching 15 repos uses ~1,486 tokens in one call, well within the limit. The alternative — one call per repo fired in parallel — would consume ~7,500 tokens simultaneously and reliably hit rate limits. Batching also cuts network overhead from N round trips to one.
 
 ---
 
