@@ -146,9 +146,9 @@ Mini-batches of 5 chosen: better quality, faster, +24% token cost still within l
 
 ## Pagination
 
-Repos load 10 at a time. A **Load More** button fetches the next page via `/api/github/items?page=N` and triggers a fresh AI batch only for the new repos — existing results are unchanged.
+Repos load 15 at a time. A **Load More** button fetches the next page via `/api/github/items?page=N` and triggers a fresh AI batch only for the new repos — existing results are unchanged.
 
-`hasMore` is derived from whether GitHub returned a full page of results (< 10 = no more pages).
+`hasMore` is derived from whether GitHub returned a full page of results (< 15 = no more pages).
 
 ---
 
@@ -157,7 +157,6 @@ Repos load 10 at a time. A **Load More** button fetches the next page via `/api/
 - GitHub access token stored in a **JWE (JSON Web Encryption)** cookie — AES-256-GCM encrypted with `NEXTAUTH_SECRET`. 5-segment format vs standard JWT's 3.
 - `__Secure-` cookie prefix enforced in production (HTTPS only).
 - Token never reaches the browser.
-- `/api/ai/analyze` requires an authenticated session — unauthenticated requests return 401.
 
 ---
 
@@ -172,20 +171,29 @@ Repos load 10 at a time. A **Load More** button fetches the next page via `/api/
 
 ## Future Enhancements
 
+## Limitations
+
+- **No persistence** — data is fetched fresh on every page load; there is no cache between sessions
+- **Repository-only** — currently only reads repos, not issues, PRs, or commits
+- **Single service** — only GitHub is connected; Spotify and Google Calendar were considered but deprioritized within the time budget
+- **Rate limits** — GitHub's API allows 5,000 requests/hour for authenticated users; Groq's free tier has per-minute limits that could cause failures if many users hit the app simultaneously
+
+---
+
+## Future Enhancements
+
 ### +1 day
-- Stream AI responses via Groq streaming API — cards populate token by token
-- Keyword frequency chart across all repos
-- Session guard on `/api/ai/analyze`
+- Stream AI responses per card using the Groq streaming API and React Suspense, so cards populate as results arrive rather than all at once
+- Add a keyword frequency chart across all repos (bar chart of most common terms)
 
 ### +5 days
-- Spotify OAuth — recently played tracks with mood/genre analysis
-- Vercel KV (Upstash Redis) AI result cache — key by `userId:repoId`, TTL 5 min
-- User preferences (which AI fields to show, repos per page) saved to profile
-- Expand GitHub data to open issues + recent PRs
+- Add Spotify integration — recently played tracks with mood/genre analysis
+- Persist AI results in a lightweight store (Redis or Vercel KV) with a short TTL, so repeat visits are instant
+- Expand GitHub data to include open issues and recent PRs for richer analysis context
+- Let users choose which AI processing to apply per card (summary, keywords, or sentiment)
 
 ### +20 days
-- Google Calendar, Notion, Reddit integrations
-- Cross-service unified feed with AI daily digest
-- Webhook subscriptions for real-time updates
-- Shareable dashboard snapshots
-- Team/org mode
+- Support additional OAuth services: Google Calendar (event summarization), Notion (page digests), Reddit (subscription highlights)
+- Cross-service unified feed with AI-generated daily digest
+- Webhook subscriptions for real-time updates without polling
+- Shareable dashboard snapshots with public links
