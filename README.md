@@ -18,8 +18,8 @@ A connected services dashboard that fetches your GitHub repositories and enriche
 ### Local development
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/mysubscriptions.git
-cd mysubscriptions
+git clone git@github.com:wileam/MySubscription.git
+cd MySubscription
 npm install
 cp .env.example .env.local   # fill in your values
 npm run dev
@@ -37,10 +37,10 @@ Open http://localhost:3000.
 | `GITHUB_CLIENT_SECRET` | From your GitHub OAuth app |
 | `GROQ_API_KEY` | From console.groq.com |
 
-**GitHub OAuth callback URLs** (add both in your OAuth app settings):
+**GitHub OAuth callback URLs**:
 ```
-http://localhost:3000/api/auth/callback/github
-https://your-app.vercel.app/api/auth/callback/github
+http://localhost:3000/api/auth/callback/github // local
+https://your-app.vercel.app/api/auth/callback/github // vercel
 ```
 
 ---
@@ -166,17 +166,6 @@ Repos load 15 at a time. A **Load More** button fetches the next page via `/api/
 - **Repository-only** — repos only, not issues, PRs, or commits
 - **Single service** — GitHub only; Spotify deprioritized within time budget
 - **Groq free tier** — 6,000 TPM limit; concurrent users could hit it without a request queue
-
----
-
-## Future Enhancements
-
-## Limitations
-
-- **No persistence** — data is fetched fresh on every page load; there is no cache between sessions
-- **Repository-only** — currently only reads repos, not issues, PRs, or commits
-- **Single service** — only GitHub is connected; Spotify and Google Calendar were considered but deprioritized within the time budget
-- **Rate limits** — GitHub's API allows 5,000 requests/hour for authenticated users; Groq's free tier has per-minute limits that could cause failures if many users hit the app simultaneously
 
 ---
 
